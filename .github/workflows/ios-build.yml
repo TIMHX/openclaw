@@ -27,15 +27,11 @@ jobs:
 
       - name: Build Archive
         run: |
-          # 列出所有可用的 Xcode 版本，方便你在日志里确认（可选）
-          ls /Applications/ | grep Xcode
+          # 关键修改：直接强制使用虚拟机里最新的 Xcode 26.3
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           
-          # 尝试切换到最新的版本路径（GitHub Actions 有时会将预览版放在这个路径）
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
-          fi
+          # 验证一下现在的版本（可选，会在日志里显示）
+          xcodebuild -version
           
           xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
@@ -46,7 +42,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             -resolvePackageDependencies
-
       - name: Export IPA (Unsigned)
         run: |
           mkdir -p Payload
