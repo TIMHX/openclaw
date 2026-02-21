@@ -1,69 +1,48 @@
-name: Build OpenClaw iOS
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+name: iOS Build
+on: [push, workflow_dispatch]
 
 jobs:
-  build-ios:
-    runs-on: macos-latest
+  build:
+    runs-on: macos-14 # 使用 GitHub 提供的 macOS 环境
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
         with:
           version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
 
-      # 1. 安装依赖
       - name: Install Dependencies
         run: pnpm install
 
-      # 2. 构建项目 (根据 package.json 中的 build 脚本)
-      - name: Build Project
-        run: pnpm run build
-
-      # 3. 同步 Capacitor iOS (针对移动端包)
-      # 仓库中 client-mobile 位于 packages 下
-      - name: Capacitor Sync
+      - name: Generate Xcode Project
         run: |
-          cd packages/client-mobile
-          npx cap sync ios
+          brew install xcodegen
+          cd apps/ios
+          xcodegen generate
 
-      # 4. 安装 CocoaPods
-      - name: Install CocoaPods
-        run: |
-          cd packages/client-mobile/ios/App
-          pod install
-
-      # 5. Xcode 编译 (无签名模式)
-      - name: Xcode Archive
+      - name: Build Archive
         run: |
           xcodebuild archive \
-            -workspace packages/client-mobile/ios/App/App.xcworkspace \
-            -scheme App \
-            -configuration Release \
+            -project apps/ios/OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -configuration Debug \
+            -sdk iphoneos \
             -archivePath ./build/OpenClaw.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      # 6. 打包并提取 IPA
-      - name: Create IPA
+      - name: Export IPA (Unsigned)
         run: |
-          mkdir -p Payload
-          find ./build/OpenClaw.xcarchive/Products/Applications -name "*.app" -exec cp -r {} Payload/ \;
-          zip -r OpenClaw_Unsigned.ipa Payload
+          mkdir -p ./dist
+          cp -R ./build/OpenClaw.xcarchive/Products/Applications/OpenClaw.app ./dist/
+          cd dist
+          zip -r OpenClaw.ipa OpenClaw.app
 
-      # 7. 上传结果
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-iOS-IPA
-          path: OpenClaw_Unsigned.ipa
+          name: OpenClaw-Unsigned-IPA
+          path: dist/OpenClaw.ipa
