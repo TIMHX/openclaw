@@ -56,3 +56,12 @@ jobs:
 
       - name: Package IPA
         run: |
+          mkdir -p Payload
+          cp -R ./build/OpenClaw.xcarchive/Products/Applications/OpenClaw.app Payload/
+          zip -r OpenClaw.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-iOS-Sideload
+          path: OpenClaw.ipa
