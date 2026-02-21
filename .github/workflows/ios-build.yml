@@ -1,67 +1,48 @@
-name: Build OpenClaw iOS
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
+name: Build iOS IPA
+on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Force Latest Swift Toolchain
-        run: |
-          # 强制将 Xcode 16.2 的工具链路径插入系统 PATH 最前端
-          echo "/Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin" >> $GITHUB_PATH
-          echo "DEVELOPER_DIR=/Applications/Xcode_16.2.app/Contents/Developer" >> $GITHUB_ENV
-          
-      - name: Verify Versions
-        run: |
-          # 这里必须显示 Swift 6.0.2 或 6.1/6.2 才能继续
-          swift --version
-          xcodebuild -version
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v2
         with:
-          version: 9
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
 
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
       - name: Generate Project
         run: |
-          brew install xcodegen
           cd apps/ios
-          cp LocalSigning.xcconfig.example LocalSigning.xcconfig
           xcodegen generate
 
       - name: Build Archive
         run: |
-          # 使用更加激进的清理策略
-          xcodebuild archive \
-            -project apps/ios/OpenClaw.xcodeproj \
+          xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphoneos \
-            -archivePath ./build/OpenClaw.xcarchive \
-            -clonedSourcePackagesDirPath ./build/spm \
-            -skipPackageUpdates \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            COMPILER_INDEX_STORE_ENABLE=NO
-        # 注意：如果这步报错，尝试删掉 -skipPackageUpdates
+            -archivePath $PWD/build/OpenClaw.xcarchive \
+            clean archive \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Package IPA
+      - name: Export IPA (Unsigned)
         run: |
           mkdir -p Payload
-          cp -R ./build/OpenClaw.xcarchive/Products/Applications/OpenClaw.app Payload/
+          cp -r build/OpenClaw.xcarchive/Products/Applications/OpenClaw.app Payload/
           zip -r OpenClaw.ipa Payload
-
-      - name: Upload IPA
+          
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClaw-iOS-Sideload
+          name: OpenClaw-Unsigned-IPA
           path: OpenClaw.ipa
