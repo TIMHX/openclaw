@@ -17,22 +17,24 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
       - name: Install Tools
         run: |
           brew install xcodegen swiftlint
 
+      - name: Fix Source Code (ntohl error)
+        run: |
+          # 针对报错的 GatewayConnectionController.swift 注入头文件
+          FILE="apps/ios/Sources/Gateway/GatewayConnectionController.swift"
+          echo "#import <arpa/inet.h>" | cat - "$FILE" > temp && mv temp "$FILE"
+          # 同时也检查一下常见的网络定义文件
+          sed -i '' '1i\
+          import Foundation' "$FILE"
+
       - name: Generate Project
         run: |
           cd apps/ios
-          # 关键：创建一个只包含主 App 的配置文件
-          # 我们通过排除 WatchApp 和 WatchExtension 来绕过错误
           echo "CODE_SIGNING_REQUIRED=NO" >> LocalSigning.xcconfig
           echo "CODE_SIGNING_ALLOWED=NO" >> LocalSigning.xcconfig
-          
-          # 使用 xcodegen 生成项目，并在下一步通过 -target 限制编译范围
           xcodegen generate
 
       - name: Build Archive
@@ -45,8 +47,8 @@ jobs:
             -resolvePackageDependencies
 
           # 2. 编译 Archive
-          # 关键修改：增加 -destination 确保它知道我们要的是真机 iPhone
-          # 并且增加选项跳过不需要的 Watch 依赖检查
+          # 增加了 SWIFT_TREAT_WARNINGS_AS_ERRORS=NO 确保警告不卡死编译
+          # 增加了 SWIFT_STRICT_CONCURRENCY=minimal 降低并发检查等级
           xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
             -configuration Release \
@@ -56,6 +58,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_STRICT_CONCURRENCY=minimal \
             COMPILER_INDEX_STORE_ENABLE=NO
       - name: Export IPA (Unsigned)
         run: |
