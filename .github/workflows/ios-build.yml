@@ -1,30 +1,9 @@
-name: Build OpenClaw iOS
-on: 
-  push:
-    branches: [ main, master ] # 当你推送代码到主分支时触发
-  workflow_dispatch:          # 允许你在 GitHub 网页上点击按钮手动触发
-
-jobs:
-  build:
-    runs-on: macos-15
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Select Xcode 16.2
-        # 强制使用包含 Swift 6.2 的 Xcode 版本
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
+- name: Select Xcode 16.2
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          # 打印版本确保切换成功
+          xcodebuild -version
+          swift --version
 
       - name: Install Dependencies
         run: pnpm install
@@ -32,25 +11,24 @@ jobs:
       - name: Generate Xcode Project
         run: |
           brew install xcodegen
-          # 模拟本地签名配置，防止编译报错
           cd apps/ios
           cp LocalSigning.xcconfig.example LocalSigning.xcconfig
+          # 强制重新生成，确保 SPM 依赖刷新
           xcodegen generate
 
       - name: Build Archive
+        # 通过环境变量 DEVELOPER_DIR 强制 xcodebuild 使用指定版本
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
         run: |
+          # 核心修复：增加 -clonedSourcePackagesDirPath 来隔离包缓存
           xcodebuild archive \
             -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
             -configuration Debug \
             -sdk iphoneos \
             -archivePath ./build/OpenClaw.xcarchive \
+            -clonedSourcePackagesDirPath ./build/spm \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
-
-      - name: Package IPA
-        run: |
-          mkdir -p Payload
-          # 将编译好的 .app 文件夹放入 Payload (iOS 标准安装包结构)
-          cp -R ./build/OpenClaw.xcarchive/Products/Applications/OpenClaw
