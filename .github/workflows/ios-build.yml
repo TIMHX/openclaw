@@ -20,6 +20,10 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Install Tools
+        run: |
+          brew install xcodegen swiftlint
+
       - name: Generate Project
         run: |
           cd apps/ios
