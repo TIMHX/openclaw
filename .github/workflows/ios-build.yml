@@ -23,12 +23,24 @@ jobs:
 
       - name: Fix Source Code (ntohl error)
         run: |
-          # 针对报错的 GatewayConnectionController.swift 注入头文件
           FILE="apps/ios/Sources/Gateway/GatewayConnectionController.swift"
-          echo "#import <arpa/inet.h>" | cat - "$FILE" > temp && mv temp "$FILE"
-          # 同时也检查一下常见的网络定义文件
+          # 1. 先把刚才弄乱的第一行删掉（恢复原状）
+          sed -i '' '1d' "$FILE"
+          
+          # 2. 在文件开头注入正确的头文件导入
+          # 在 Swift 中调用 C 语言的网络函数，通常导入 Darwin.C.arpa.inet 即可
           sed -i '' '1i\
-          import Foundation' "$FILE"
+          import Darwin.C.arpa.inet' "$FILE"
+          
+          # 3. 如果还是找不到 ntohl，我们就手动定义一个 Swift 版的 ntohl
+          # 这样能彻底绕过头文件包含的问题
+          cat <<EOF >> "$FILE"
+          
+          // 手动注入 ntohl 兼容函数
+          func ntohl(_ value: UInt32) -> UInt32 {
+              return value.bigEndian
+          }
+          EOF
 
       - name: Generate Project
         run: |
