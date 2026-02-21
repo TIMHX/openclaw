@@ -6,6 +6,8 @@ jobs:
     runs-on: macos-15 # 使用 GitHub 提供的 macOS 环境
     steps:
       - uses: actions/checkout@v4
+      - name: Set Xcode Version
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
       - uses: pnpm/action-setup@v2
         with:
           version: 9
