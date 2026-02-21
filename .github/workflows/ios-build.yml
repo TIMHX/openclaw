@@ -27,13 +27,25 @@ jobs:
 
       - name: Build Archive
         run: |
+          # 列出所有可用的 Xcode 版本，方便你在日志里确认（可选）
+          ls /Applications/ | grep Xcode
+          
+          # 尝试切换到最新的版本路径（GitHub Actions 有时会将预览版放在这个路径）
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+          fi
+          
           xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
             -configuration Release \
             -sdk iphoneos \
             -archivePath $PWD/build/OpenClaw.xcarchive \
             clean archive \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            -resolvePackageDependencies
 
       - name: Export IPA (Unsigned)
         run: |
