@@ -1,0 +1,45 @@
+name: Build iOS IPA
+on: [push, workflow_dispatch] # 支持手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest # 使用 GitHub 提供的 Mac 服务器
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22' # OpenClaw 2026版推荐版本
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Web Assets
+        run: npm run build # 编译前端资源
+
+      - name: Build iOS Project
+        run: |
+          # 这一步会调用 xcodebuild 命令行工具
+          # 注意：由于没有证书，我们先打出一个 "Unsigned" 的包
+          xcodebuild archive \
+            -workspace apps/ios/OpenClaw.xcworkspace \
+            -scheme OpenClaw \
+            -configuration Release \
+            -archivePath ./build/OpenClaw.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Export IPA
+        run: |
+          # 将编译好的文件转为 IPA
+          mkdir -p Payload
+          cp -r ./build/OpenClaw.xcarchive/Products/Applications/*.app ./Payload
+          zip -r OpenClaw_Unsigned.ipa Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-ipa
+          path: OpenClaw_Unsigned.ipa
