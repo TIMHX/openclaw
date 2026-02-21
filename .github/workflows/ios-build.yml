@@ -1,41 +1,44 @@
-name: Build iOS IPA
-on: [push, workflow_dispatch] # 支持手动触发
-
-jobs:
-  build:
-    runs-on: macos-latest # 使用 GitHub 提供的 Mac 服务器
-    steps:
+steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22' # OpenClaw 2026版推荐版本
+          node-version: '22'
+
+      # 关键修复：安装 pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9 # 或者根据 OpenClaw 的要求指定版本
 
       - name: Install dependencies
-        run: npm install
+        # 使用 pnpm 安装依赖，通常比 npm 更快且更稳定
+        run: pnpm install
 
-      - name: Build Web Assets
-        run: npm run build # 编译前端资源
+      - name: Build Assets
+        # 这一步会执行你刚才报错的那个长串命令
+        run: pnpm run build
 
       - name: Build iOS Project
         run: |
-          # 这一步会调用 xcodebuild 命令行工具
-          # 注意：由于没有证书，我们先打出一个 "Unsigned" 的包
+          # 检查是否存在 xcworkspace 或 xcodeproj
+          # 如果项目根目录没有，可能在 apps/ios 下
+          cd apps/ios || echo "No apps/ios directory, staying in root"
+          
           xcodebuild archive \
-            -workspace apps/ios/OpenClaw.xcworkspace \
             -scheme OpenClaw \
             -configuration Release \
-            -archivePath ./build/OpenClaw.xcarchive \
+            -archivePath ../../build/OpenClaw.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
       - name: Export IPA
         run: |
-          # 将编译好的文件转为 IPA
           mkdir -p Payload
-          cp -r ./build/OpenClaw.xcarchive/Products/Applications/*.app ./Payload
+          # 寻找编译出的 .app 文件并打包
+          find build/OpenClaw.xcarchive -name "*.app" -exec cp -r {} Payload/ \;
           zip -r OpenClaw_Unsigned.ipa Payload
 
       - name: Upload Artifact
