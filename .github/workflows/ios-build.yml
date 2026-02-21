@@ -27,21 +27,24 @@ jobs:
 
       - name: Build Archive
         run: |
-          # 关键修改：直接强制使用虚拟机里最新的 Xcode 26.3
           sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           
-          # 验证一下现在的版本（可选，会在日志里显示）
-          xcodebuild -version
-          
+          # 第一步：只解析依赖（确保下载完整）
+          xcodebuild -project apps/ios/OpenClaw.xcodeproj \
+            -scheme OpenClaw \
+            -resolvePackageDependencies
+
+          # 第二步：正式编译并导出 Archive
+          # 注意：去掉 clean，直接 archive，确保路径正确
           xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
             -configuration Release \
             -sdk iphoneos \
             -archivePath $PWD/build/OpenClaw.xcarchive \
-            clean archive \
+            archive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            -resolvePackageDependencies
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
       - name: Export IPA (Unsigned)
         run: |
           mkdir -p Payload
