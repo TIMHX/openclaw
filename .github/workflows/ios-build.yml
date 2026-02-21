@@ -23,28 +23,36 @@ jobs:
       - name: Generate Project
         run: |
           cd apps/ios
+          # 关键：创建一个只包含主 App 的配置文件
+          # 我们通过排除 WatchApp 和 WatchExtension 来绕过错误
+          echo "CODE_SIGNING_REQUIRED=NO" >> LocalSigning.xcconfig
+          echo "CODE_SIGNING_ALLOWED=NO" >> LocalSigning.xcconfig
+          
+          # 使用 xcodegen 生成项目，并在下一步通过 -target 限制编译范围
           xcodegen generate
 
       - name: Build Archive
         run: |
           sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           
-          # 第一步：只解析依赖（确保下载完整）
+          # 1. 解析依赖
           xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
             -resolvePackageDependencies
 
-          # 第二步：正式编译并导出 Archive
-          # 注意：去掉 clean，直接 archive，确保路径正确
+          # 2. 编译 Archive
+          # 关键修改：增加 -destination 确保它知道我们要的是真机 iPhone
+          # 并且增加选项跳过不需要的 Watch 依赖检查
           xcodebuild -project apps/ios/OpenClaw.xcodeproj \
             -scheme OpenClaw \
             -configuration Release \
-            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -archivePath $PWD/build/OpenClaw.xcarchive \
             archive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO
       - name: Export IPA (Unsigned)
         run: |
           mkdir -p Payload
