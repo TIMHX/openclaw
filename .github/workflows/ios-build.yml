@@ -3,7 +3,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: macos-14 # 使用 GitHub 提供的 macOS 环境
+    runs-on: macos-15 # 使用 GitHub 提供的 macOS 环境
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v2
