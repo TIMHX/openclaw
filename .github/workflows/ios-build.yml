@@ -1,5 +1,16 @@
-steps:
-      - name: Checkout code
+name: Build OpenClaw iOS (Unsigned)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # 允许你在 GitHub 页面手动点击运行
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -7,42 +18,52 @@ steps:
         with:
           node-version: '22'
 
-      # 关键修复：安装 pnpm
+      # 1. 安装 pnpm (修复你之前的 exit code 127 错误)
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 9 # 或者根据 OpenClaw 的要求指定版本
+          version: 9
 
-      - name: Install dependencies
-        # 使用 pnpm 安装依赖，通常比 npm 更快且更稳定
+      # 2. 安装项目所有依赖
+      - name: Install Dependencies
         run: pnpm install
 
-      - name: Build Assets
-        # 这一步会执行你刚才报错的那个长串命令
+      # 3. 执行项目构建脚本 (即报错的那一长串命令)
+      - name: Build Web & Plugin SDK
         run: pnpm run build
 
-      - name: Build iOS Project
+      # 4. 安装 CocoaPods (iOS 原生依赖管理)
+      - name: Install CocoaPods
         run: |
-          # 检查是否存在 xcworkspace 或 xcodeproj
-          # 如果项目根目录没有，可能在 apps/ios 下
-          cd apps/ios || echo "No apps/ios directory, staying in root"
-          
+          cd apps/ios
+          pod install
+        # 如果项目根目录没有 apps/ios，请根据实际源码路径修改此处的 cd 命令
+
+      # 5. 编译 iOS 项目 (不带签名，适合 Sideloadly)
+      - name: Xcode Archive
+        run: |
           xcodebuild archive \
+            -workspace apps/ios/OpenClaw.xcworkspace \
             -scheme OpenClaw \
             -configuration Release \
-            -archivePath ../../build/OpenClaw.xcarchive \
+            -archivePath ./build/OpenClaw.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_METHOD=manual
 
-      - name: Export IPA
+      # 6. 打包为 .ipa 文件
+      - name: Create IPA
         run: |
           mkdir -p Payload
-          # 寻找编译出的 .app 文件并打包
-          find build/OpenClaw.xcarchive -name "*.app" -exec cp -r {} Payload/ \;
+          # 查找生成的 .app 文件并移动到 Payload 文件夹
+          find ./build/OpenClaw.xcarchive/Products/Applications -name "*.app" -exec cp -r {} Payload/ \;
+          # 压缩为 ipa
           zip -r OpenClaw_Unsigned.ipa Payload
 
+      # 7. 上传到 GitHub Artifacts 供你下载
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: openclaw-ipa
+          name: OpenClaw-iOS-IPA
           path: OpenClaw_Unsigned.ipa
+          retention-days: 5 # 产物保留5天
